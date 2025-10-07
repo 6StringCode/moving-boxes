@@ -1,6 +1,6 @@
 export const metadata = {
   title: 'Moving Box Tracker',
-  description: 'Track your moving boxes',
+  description: 'Track your moving boxes easily',
 };
 
 export default function RootLayout({
