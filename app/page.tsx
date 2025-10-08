@@ -7,7 +7,6 @@ interface Box {
   number: number;
   room: string;
   contents: string;
-  priority: string;
 }
 
 export default function Home() {
@@ -15,8 +14,10 @@ export default function Home() {
   const [boxNumber, setBoxNumber] = useState('');
   const [room, setRoom] = useState('');
   const [contents, setContents] = useState('');
-  const [priority, setPriority] = useState('Low');
   const [loading, setLoading] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editRoom, setEditRoom] = useState('');
+  const [editContents, setEditContents] = useState('');
 
   useEffect(() => {
     fetchBoxes();
@@ -62,13 +63,11 @@ export default function Home() {
           number: parseInt(boxNumber),
           room,
           contents,
-          priority,
         }),
       });
 
       setRoom('');
       setContents('');
-      setPriority('Low');
       await fetchBoxes();
     } catch (error) {
       console.error('Error adding box:', error);
@@ -78,7 +77,53 @@ export default function Home() {
     }
   }
 
+  async function handleUpdateBox(id: number) {
+    if (!editRoom || !editContents) {
+      alert('Please fill in room and contents');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await fetch('/api/boxes', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id,
+          room: editRoom,
+          contents: editContents,
+        }),
+      });
+
+      setEditingId(null);
+      setEditRoom('');
+      setEditContents('');
+      await fetchBoxes();
+    } catch (error) {
+      console.error('Error updating box:', error);
+      alert('Failed to update box');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function startEditing(box: Box) {
+    setEditingId(box.id);
+    setEditRoom(box.room);
+    setEditContents(box.contents);
+  }
+
+  function cancelEditing() {
+    setEditingId(null);
+    setEditRoom('');
+    setEditContents('');
+  }
+
   async function handleDeleteBox(id: number) {
+    if (!confirm('Are you sure you want to delete this box?')) {
+      return;
+    }
+
     setLoading(true);
     try {
       await fetch('/api/boxes', {
@@ -94,8 +139,6 @@ export default function Home() {
       setLoading(false);
     }
   }
-
-  const highPriorityCount = boxes.filter(b => b.priority === 'High').length;
 
   return (
     <div style={styles.body}>
@@ -137,15 +180,6 @@ export default function Home() {
             placeholder="What's inside? (e.g., dishes, books, clothes)"
             style={{ ...styles.input, flex: 1, minWidth: '200px' }}
           />
-          <select
-            value={priority}
-            onChange={(e) => setPriority(e.target.value)}
-            style={styles.select}
-          >
-            <option value="Low">Low Priority</option>
-            <option value="Medium">Medium Priority</option>
-            <option value="High">High Priority</option>
-          </select>
           <button onClick={handleAddBox} disabled={loading} style={styles.button}>
             {loading ? 'Adding...' : 'Add Box'}
           </button>
@@ -158,14 +192,13 @@ export default function Home() {
                 <th style={styles.th}>Box #</th>
                 <th style={styles.th}>Room</th>
                 <th style={styles.th}>Contents</th>
-                <th style={styles.th}>Priority</th>
-                <th style={styles.th}>Action</th>
+                <th style={styles.th}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {boxes.length === 0 ? (
                 <tr style={styles.emptyState}>
-                  <td colSpan={5} style={styles.td}>
+                  <td colSpan={4} style={styles.td}>
                     <p>No boxes added yet</p>
                     <small>Start by adding your first box above!</small>
                   </td>
@@ -174,26 +207,78 @@ export default function Home() {
                 boxes.map((box) => (
                   <tr key={box.id} style={styles.tr}>
                     <td style={{ ...styles.td, ...styles.boxNumber }}>{box.number}</td>
-                    <td style={styles.td}>{box.room}</td>
-                    <td style={styles.td}>{box.contents}</td>
                     <td style={styles.td}>
-                      <span style={{
-                        ...styles.priority,
-                        ...(box.priority === 'High' ? styles.priorityHigh :
-                          box.priority === 'Medium' ? styles.priorityMedium :
-                            styles.priorityLow)
-                      }}>
-                        {box.priority}
-                      </span>
+                      {editingId === box.id ? (
+                        <select
+                          value={editRoom}
+                          onChange={(e) => setEditRoom(e.target.value)}
+                          style={styles.editInput}
+                        >
+                          <option value="">Select Room</option>
+                          <option value="Kitchen">Kitchen</option>
+                          <option value="Living Room">Living Room</option>
+                          <option value="Bedroom">Bedroom</option>
+                          <option value="Bathroom">Bathroom</option>
+                          <option value="Office">Office</option>
+                          <option value="Garage">Garage</option>
+                          <option value="Basement">Basement</option>
+                          <option value="Attic">Attic</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      ) : (
+                        box.room
+                      )}
                     </td>
                     <td style={styles.td}>
-                      <button
-                        onClick={() => handleDeleteBox(box.id)}
-                        disabled={loading}
-                        style={styles.deleteBtn}
-                      >
-                        Delete
-                      </button>
+                      {editingId === box.id ? (
+                        <input
+                          type="text"
+                          value={editContents}
+                          onChange={(e) => setEditContents(e.target.value)}
+                          style={styles.editInput}
+                        />
+                      ) : (
+                        box.contents
+                      )}
+                    </td>
+                    <td style={styles.td}>
+                      <div style={styles.actionButtons}>
+                        {editingId === box.id ? (
+                          <>
+                            <button
+                              onClick={() => handleUpdateBox(box.id)}
+                              disabled={loading}
+                              style={styles.saveBtn}
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={cancelEditing}
+                              disabled={loading}
+                              style={styles.cancelBtn}
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => startEditing(box)}
+                              disabled={loading}
+                              style={styles.editBtn}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDeleteBox(box.id)}
+                              disabled={loading}
+                              style={styles.deleteBtn}
+                            >
+                              Delete
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -206,10 +291,6 @@ export default function Home() {
           <div style={styles.statItem}>
             <div style={styles.statNumber}>{boxes.length}</div>
             <div style={styles.statLabel}>Total Boxes</div>
-          </div>
-          <div style={styles.statItem}>
-            <div style={styles.statNumber}>{highPriorityCount}</div>
-            <div style={styles.statLabel}>High Priority</div>
           </div>
         </div>
       </div>
@@ -309,24 +390,36 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#667eea',
     fontSize: '18px',
   },
-  priority: {
-    display: 'inline-block',
-    padding: '4px 12px',
-    borderRadius: '12px',
+  actionButtons: {
+    display: 'flex',
+    gap: '8px',
+  },
+  editBtn: {
+    background: '#667eea',
+    color: 'white',
+    border: 'none',
+    padding: '6px 12px',
+    borderRadius: '4px',
+    cursor: 'pointer',
     fontSize: '12px',
-    fontWeight: '600',
   },
-  priorityHigh: {
-    background: '#fee',
-    color: '#c00',
+  saveBtn: {
+    background: '#28a745',
+    color: 'white',
+    border: 'none',
+    padding: '6px 12px',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '12px',
   },
-  priorityMedium: {
-    background: '#ffeaa7',
-    color: '#d63031',
-  },
-  priorityLow: {
-    background: '#dfe6e9',
-    color: '#2d3436',
+  cancelBtn: {
+    background: '#6c757d',
+    color: 'white',
+    border: 'none',
+    padding: '6px 12px',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '12px',
   },
   deleteBtn: {
     background: '#dc3545',
@@ -336,6 +429,13 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: '4px',
     cursor: 'pointer',
     fontSize: '12px',
+  },
+  editInput: {
+    padding: '8px',
+    border: '2px solid #667eea',
+    borderRadius: '4px',
+    fontSize: '14px',
+    width: '100%',
   },
   stats: {
     padding: '20px 30px',

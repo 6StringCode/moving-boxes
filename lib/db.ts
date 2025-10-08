@@ -7,7 +7,6 @@ export async function initDB() {
       number INTEGER NOT NULL,
       room VARCHAR(100) NOT NULL,
       contents TEXT NOT NULL,
-      priority VARCHAR(20) NOT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `;
@@ -15,15 +14,25 @@ export async function initDB() {
 
 export async function getBoxes() {
   const { rows } = await sql`
-    SELECT * FROM boxes ORDER BY number ASC
+    SELECT id, number, room, contents, created_at FROM boxes ORDER BY number ASC
   `;
   return rows;
 }
 
-export async function addBox(number: number, room: string, contents: string, priority: string) {
+export async function addBox(number: number, room: string, contents: string) {
   const { rows } = await sql`
-    INSERT INTO boxes (number, room, contents, priority)
-    VALUES (${number}, ${room}, ${contents}, ${priority})
+    INSERT INTO boxes (number, room, contents)
+    VALUES (${number}, ${room}, ${contents})
+    RETURNING *
+  `;
+  return rows[0];
+}
+
+export async function updateBox(id: number, room: string, contents: string) {
+  const { rows } = await sql`
+    UPDATE boxes 
+    SET room = ${room}, contents = ${contents}
+    WHERE id = ${id}
     RETURNING *
   `;
   return rows[0];

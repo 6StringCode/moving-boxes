@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getBoxes, addBox, deleteBox, initDB } from '@/lib/db';
+import { getBoxes, addBox, updateBox, deleteBox, initDB } from '@/lib/db';
 
 export async function GET() {
   try {
@@ -14,12 +14,23 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const { number, room, contents, priority } = await request.json();
-    const box = await addBox(number, room, contents, priority);
+    const { number, room, contents } = await request.json();
+    const box = await addBox(number, room, contents);
     return NextResponse.json(box);
   } catch (error) {
     console.error('Error adding box:', error);
     return NextResponse.json({ error: 'Failed to add box' }, { status: 500 });
+  }
+}
+
+export async function PUT(request: Request) {
+  try {
+    const { id, room, contents } = await request.json();
+    const box = await updateBox(id, room, contents);
+    return NextResponse.json(box);
+  } catch (error) {
+    console.error('Error updating box:', error);
+    return NextResponse.json({ error: 'Failed to update box' }, { status: 500 });
   }
 }
 
