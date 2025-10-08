@@ -14,8 +14,8 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const { number, room, contents } = await request.json();
-    const box = await addBox(number, room, contents);
+    const { number, room, contents, image_url } = await request.json();
+    const box = await addBox(number, room, contents, image_url);
     return NextResponse.json(box);
   } catch (error) {
     console.error('Error adding box:', error);
@@ -25,8 +25,8 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
-    const { id, room, contents } = await request.json();
-    const box = await updateBox(id, room, contents);
+    const { id, room, contents, image_url } = await request.json();
+    const box = await updateBox(id, room, contents, image_url);
     return NextResponse.json(box);
   } catch (error) {
     console.error('Error updating box:', error);

@@ -7,6 +7,7 @@ interface Box {
   number: number;
   room: string;
   contents: string;
+  image_url?: string | null;
 }
 
 export default function Home() {
@@ -15,9 +16,13 @@ export default function Home() {
   const [room, setRoom] = useState('');
   const [contents, setContents] = useState('');
   const [loading, setLoading] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editRoom, setEditRoom] = useState('');
   const [editContents, setEditContents] = useState('');
+  const [editImageFile, setEditImageFile] = useState<File | null>(null);
+  const [editImagePreview, setEditImagePreview] = useState<string | null>(null);
 
   useEffect(() => {
     fetchBoxes();
@@ -48,6 +53,52 @@ export default function Home() {
     }
   }
 
+  function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) {
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+
+  function handleEditImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) {
+      setEditImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setEditImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+
+  async function uploadImage(file: File): Promise<string | null> {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Upload failed');
+      }
+
+      const data = await response.json();
+      return data.url;
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      return null;
+    }
+  }
+
   async function handleAddBox() {
     if (!boxNumber || !room || !contents) {
       alert('Please fill in box number, room, and contents');
@@ -56,6 +107,13 @@ export default function Home() {
 
     setLoading(true);
     try {
+      let image_url = null;
+
+      // Upload image if one was selected
+      if (imageFile) {
+        image_url = await uploadImage(imageFile);
+      }
+
       await fetch('/api/boxes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -63,11 +121,14 @@ export default function Home() {
           number: parseInt(boxNumber),
           room,
           contents,
+          image_url,
         }),
       });
 
       setRoom('');
       setContents('');
+      setImageFile(null);
+      setImagePreview(null);
       await fetchBoxes();
     } catch (error) {
       console.error('Error adding box:', error);
@@ -77,7 +138,7 @@ export default function Home() {
     }
   }
 
-  async function handleUpdateBox(id: number) {
+  async function handleUpdateBox(id: number, currentImageUrl?: string | null) {
     if (!editRoom || !editContents) {
       alert('Please fill in room and contents');
       return;
@@ -85,6 +146,13 @@ export default function Home() {
 
     setLoading(true);
     try {
+      let image_url = currentImageUrl;
+
+      // Upload new image if one was selected
+      if (editImageFile) {
+        image_url = await uploadImage(editImageFile);
+      }
+
       await fetch('/api/boxes', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -92,12 +160,15 @@ export default function Home() {
           id,
           room: editRoom,
           contents: editContents,
+          image_url,
         }),
       });
 
       setEditingId(null);
       setEditRoom('');
       setEditContents('');
+      setEditImageFile(null);
+      setEditImagePreview(null);
       await fetchBoxes();
     } catch (error) {
       console.error('Error updating box:', error);
@@ -111,12 +182,15 @@ export default function Home() {
     setEditingId(box.id);
     setEditRoom(box.room);
     setEditContents(box.contents);
+    setEditImagePreview(box.image_url || null);
   }
 
   function cancelEditing() {
     setEditingId(null);
     setEditRoom('');
     setEditContents('');
+    setEditImageFile(null);
+    setEditImagePreview(null);
   }
 
   async function handleDeleteBox(id: number) {
@@ -181,6 +255,21 @@ export default function Home() {
             placeholder="What's inside? (e.g., dishes, books, clothes)"
             style={{ ...styles.input, flex: 1, minWidth: '200px' }}
           />
+          <div style={styles.imageUploadContainer}>
+            <label style={styles.imageLabel}>
+              📷 Photo (optional)
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleImageSelect}
+                style={styles.fileInput}
+              />
+            </label>
+            {imagePreview && (
+              <img src={imagePreview} alt="Preview" style={styles.imagePreview} />
+            )}
+          </div>
           <button onClick={handleAddBox} disabled={loading} style={styles.button}>
             {loading ? 'Adding...' : 'Add Box'}
           </button>
@@ -191,6 +280,7 @@ export default function Home() {
             <thead style={styles.thead}>
               <tr>
                 <th style={styles.th}>Box #</th>
+                <th style={styles.th}>Image</th>
                 <th style={styles.th}>Room</th>
                 <th style={styles.th}>Contents</th>
                 <th style={styles.th}>Actions</th>
@@ -199,7 +289,7 @@ export default function Home() {
             <tbody>
               {boxes.length === 0 ? (
                 <tr style={styles.emptyState}>
-                  <td colSpan={4} style={styles.td}>
+                  <td colSpan={5} style={styles.td}>
                     <p>No boxes added yet</p>
                     <small>Start by adding your first box above!</small>
                   </td>
@@ -208,6 +298,29 @@ export default function Home() {
                 boxes.map((box) => (
                   <tr key={box.id} style={styles.tr}>
                     <td style={{ ...styles.td, ...styles.boxNumber }}>{box.number}</td>
+                    <td style={styles.td}>
+                      {editingId === box.id ? (
+                        <div>
+                          {editImagePreview && (
+                            <img src={editImagePreview} alt="Box" style={styles.tableThumbnail} />
+                          )}
+                          <label style={styles.smallImageLabel}>
+                            Change Photo
+                            <input
+                              type="file"
+                              accept="image/*"
+                              capture="environment"
+                              onChange={handleEditImageSelect}
+                              style={styles.fileInput}
+                            />
+                          </label>
+                        </div>
+                      ) : box.image_url ? (
+                        <img src={box.image_url} alt="Box" style={styles.tableThumbnail} />
+                      ) : (
+                        <span style={styles.noImage}>No image</span>
+                      )}
+                    </td>
                     <td style={styles.td}>
                       {editingId === box.id ? (
                         <select
@@ -248,7 +361,7 @@ export default function Home() {
                         {editingId === box.id ? (
                           <>
                             <button
-                              onClick={() => handleUpdateBox(box.id)}
+                              onClick={() => handleUpdateBox(box.id, box.image_url)}
                               disabled={loading}
                               style={styles.saveBtn}
                             >
@@ -467,5 +580,54 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '60px 30px',
     textAlign: 'center' as const,
     color: '#6c757d',
+  },
+  imageUploadContainer: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '8px',
+    alignItems: 'center',
+  },
+  imageLabel: {
+    padding: '8px 16px',
+    background: '#f8f9fa',
+    border: '2px solid #e9ecef',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '12px',
+    fontWeight: '600',
+    color: '#667eea',
+  },
+  smallImageLabel: {
+    padding: '4px 8px',
+    background: '#f8f9fa',
+    border: '1px solid #e9ecef',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '11px',
+    color: '#667eea',
+    display: 'inline-block',
+    marginTop: '4px',
+  },
+  fileInput: {
+    display: 'none',
+  },
+  imagePreview: {
+    width: '80px',
+    height: '80px',
+    objectFit: 'cover' as const,
+    borderRadius: '6px',
+    border: '2px solid #667eea',
+  },
+  tableThumbnail: {
+    width: '60px',
+    height: '60px',
+    objectFit: 'cover' as const,
+    borderRadius: '4px',
+    border: '1px solid #e9ecef',
+  },
+  noImage: {
+    fontSize: '11px',
+    color: '#adb5bd',
+    fontStyle: 'italic' as const,
   },
 };
