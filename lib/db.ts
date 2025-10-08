@@ -1,6 +1,7 @@
 import { sql } from '@vercel/postgres';
 
 export async function initDB() {
+  // Create table if it doesn't exist
   await sql`
     CREATE TABLE IF NOT EXISTS boxes (
       id SERIAL PRIMARY KEY,
@@ -10,6 +11,14 @@ export async function initDB() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `;
+  
+  // Drop priority column if it exists (migration)
+  try {
+    await sql`ALTER TABLE boxes DROP COLUMN IF EXISTS priority`;
+  } catch (error) {
+    // Column might not exist, that's fine
+    console.log('Priority column already removed or does not exist');
+  }
 }
 
 export async function getBoxes() {
