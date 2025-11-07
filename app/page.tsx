@@ -25,10 +25,12 @@ export default function Home() {
   const [editImageFile, setEditImageFile] = useState<File | null>(null);
   const [editImagePreview, setEditImagePreview] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'packed' | 'unpacked'>('packed');
+  const [sortBy, setSortBy] = useState<'number' | 'room'>('number');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   useEffect(() => {
     fetchBoxes();
-  }, [activeTab]);
+  }, [activeTab, sortBy, sortDirection]);
 
   useEffect(() => {
     if (boxes.length > 0) {
@@ -49,7 +51,24 @@ export default function Home() {
         const filteredBoxes = data.filter(box =>
           activeTab === 'packed' ? !box.hidden : box.hidden
         );
-        setBoxes(filteredBoxes);
+
+        // Sort the boxes
+        const sortedBoxes = [...filteredBoxes].sort((a, b) => {
+          if (sortBy === 'number') {
+            return sortDirection === 'asc' ? a.number - b.number : b.number - a.number;
+          } else {
+            // Sort by room
+            const roomA = a.room.toLowerCase();
+            const roomB = b.room.toLowerCase();
+            if (sortDirection === 'asc') {
+              return roomA < roomB ? -1 : roomA > roomB ? 1 : 0;
+            } else {
+              return roomA > roomB ? -1 : roomA < roomB ? 1 : 0;
+            }
+          }
+        });
+
+        setBoxes(sortedBoxes);
       } else {
         console.error('Expected array but got:', data);
         setBoxes([]);
@@ -242,6 +261,17 @@ export default function Home() {
     }
   }
 
+  function handleSort(column: 'number' | 'room') {
+    if (sortBy === column) {
+      // Toggle direction if already sorting by this column
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // Set new column and default to ascending
+      setSortBy(column);
+      setSortDirection('asc');
+    }
+  }
+
   return (
     <div style={styles.body}>
       <div style={styles.container}>
@@ -327,9 +357,19 @@ export default function Home() {
           <table style={styles.table}>
             <thead style={styles.thead}>
               <tr>
-                <th style={styles.th}>Box #</th>
+                <th
+                  style={{ ...styles.th, ...styles.sortableHeader }}
+                  onClick={() => handleSort('number')}
+                >
+                  Box # {sortBy === 'number' && (sortDirection === 'asc' ? '↑' : '↓')}
+                </th>
                 <th style={styles.th}>Image</th>
-                <th style={styles.th}>Room</th>
+                <th
+                  style={{ ...styles.th, ...styles.sortableHeader }}
+                  onClick={() => handleSort('room')}
+                >
+                  Room {sortBy === 'room' && (sortDirection === 'asc' ? '↑' : '↓')}
+                </th>
                 <th style={styles.th}>Contents</th>
                 <th style={styles.th}>Actions</th>
               </tr>
@@ -546,6 +586,11 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '13px',
     textTransform: 'uppercase' as const,
     letterSpacing: '0.5px',
+  },
+  sortableHeader: {
+    cursor: 'pointer',
+    userSelect: 'none' as const,
+    transition: 'background 0.2s',
   },
   td: {
     padding: '16px',
