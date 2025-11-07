@@ -8,6 +8,7 @@ interface Box {
   room: string;
   contents: string;
   image_url?: string | null;
+  hidden?: boolean;
 }
 
 export default function Home() {
@@ -23,10 +24,11 @@ export default function Home() {
   const [editContents, setEditContents] = useState('');
   const [editImageFile, setEditImageFile] = useState<File | null>(null);
   const [editImagePreview, setEditImagePreview] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'packed' | 'unpacked'>('packed');
 
   useEffect(() => {
     fetchBoxes();
-  }, []);
+  }, [activeTab]);
 
   useEffect(() => {
     if (boxes.length > 0) {
@@ -39,10 +41,15 @@ export default function Home() {
 
   async function fetchBoxes() {
     try {
-      const res = await fetch('/api/boxes');
+      // Fetch all boxes and filter on the client side based on active tab
+      const res = await fetch(`/api/boxes?includeHidden=true`);
       const data = await res.json();
       if (Array.isArray(data)) {
-        setBoxes(data);
+        // Filter based on active tab
+        const filteredBoxes = data.filter(box =>
+          activeTab === 'packed' ? !box.hidden : box.hidden
+        );
+        setBoxes(filteredBoxes);
       } else {
         console.error('Expected array but got:', data);
         setBoxes([]);
@@ -214,12 +221,53 @@ export default function Home() {
     }
   }
 
+  async function handleToggleHidden(id: number, currentHidden: boolean) {
+    setLoading(true);
+    try {
+      await fetch('/api/boxes', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'toggleHidden',
+          id,
+          hidden: !currentHidden,
+        }),
+      });
+      await fetchBoxes();
+    } catch (error) {
+      console.error('Error toggling box visibility:', error);
+      alert('Failed to update box visibility');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div style={styles.body}>
       <div style={styles.container}>
         <div style={styles.header}>
           <h1 style={styles.headerTitle}>📦 Moving Box Tracker</h1>
           <p style={styles.headerSubtitle}>Keep track of all your boxes for an organized move</p>
+          <div style={styles.tabContainer}>
+            <button
+              onClick={() => setActiveTab('packed')}
+              style={{
+                ...styles.tabButton,
+                ...(activeTab === 'packed' ? styles.tabButtonActive : {}),
+              }}
+            >
+              📦 Packed Boxes
+            </button>
+            <button
+              onClick={() => setActiveTab('unpacked')}
+              style={{
+                ...styles.tabButton,
+                ...(activeTab === 'unpacked' ? styles.tabButtonActive : {}),
+              }}
+            >
+              ✅ Unpacked Boxes
+            </button>
+          </div>
         </div>
 
         <div style={styles.addSection}>
@@ -385,6 +433,13 @@ export default function Home() {
                               Edit
                             </button>
                             <button
+                              onClick={() => handleToggleHidden(box.id, box.hidden || false)}
+                              disabled={loading}
+                              style={box.hidden ? styles.unhideBtn : styles.hideBtn}
+                            >
+                              {box.hidden ? 'Unhide' : 'Hide'}
+                            </button>
+                            <button
                               onClick={() => handleDeleteBox(box.id)}
                               disabled={loading}
                               style={styles.deleteBtn}
@@ -545,6 +600,26 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     fontSize: '12px',
   },
+  hideBtn: {
+    background: '#ffc107',
+    color: '#212529',
+    border: 'none',
+    padding: '6px 12px',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '12px',
+    fontWeight: '600',
+  },
+  unhideBtn: {
+    background: '#17a2b8',
+    color: 'white',
+    border: 'none',
+    padding: '6px 12px',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '12px',
+    fontWeight: '600',
+  },
   editInput: {
     padding: '8px',
     border: '2px solid #667eea',
@@ -629,5 +704,27 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '11px',
     color: '#adb5bd',
     fontStyle: 'italic' as const,
+  },
+  tabContainer: {
+    marginTop: '20px',
+    display: 'flex',
+    justifyContent: 'center',
+    gap: '10px',
+  },
+  tabButton: {
+    padding: '10px 24px',
+    fontSize: '14px',
+    fontWeight: '600',
+    border: 'none',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    background: 'rgba(255, 255, 255, 0.2)',
+    color: 'white',
+    transition: 'all 0.3s ease',
+  },
+  tabButtonActive: {
+    background: 'white',
+    color: '#667eea',
+    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
   },
 };

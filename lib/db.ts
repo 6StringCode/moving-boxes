@@ -26,12 +26,23 @@ export async function initDB() {
   } catch (error) {
     console.log('Image_url column already exists or error adding it');
   }
+
+  // Add hidden column if it doesn't exist (migration)
+  try {
+    await sql`ALTER TABLE boxes ADD COLUMN IF NOT EXISTS hidden BOOLEAN DEFAULT FALSE`;
+  } catch (error) {
+    console.log('Hidden column already exists or error adding it');
+  }
 }
 
-export async function getBoxes() {
-  const { rows } = await sql`
-    SELECT id, number, room, contents, image_url, created_at FROM boxes ORDER BY number ASC
-  `;
+export async function getBoxes(includeHidden: boolean = false) {
+  const { rows } = includeHidden
+    ? await sql`
+        SELECT id, number, room, contents, image_url, hidden, created_at FROM boxes ORDER BY number ASC
+      `
+    : await sql`
+        SELECT id, number, room, contents, image_url, hidden, created_at FROM boxes WHERE hidden = FALSE ORDER BY number ASC
+      `;
   return rows;
 }
 
@@ -56,5 +67,15 @@ export async function updateBox(id: number, room: string, contents: string, imag
 
 export async function deleteBox(id: number) {
   await sql`DELETE FROM boxes WHERE id = ${id}`;
+}
+
+export async function toggleBoxHidden(id: number, hidden: boolean) {
+  const { rows } = await sql`
+    UPDATE boxes
+    SET hidden = ${hidden}
+    WHERE id = ${id}
+    RETURNING *
+  `;
+  return rows[0];
 }
 
